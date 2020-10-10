@@ -40,6 +40,9 @@
 /* Description of the prediction input effect for retrospective correction */
 "30 min comparison of glucose prediction vs actual, continued with decay over 60 min" = "Comparaison sur 30 min de la glycémie Prédiction vs Actuelle, suivie d'une décroissance (decay) sur 60 min.";
 
+/* Subtitle of Lyumjev preset */
+"A model based on the published absorption of Lyumjev insulin." = "Un modèle basé sur l’absorption publiée de l’insuline Lyumjev.";
+
 /* Subtitle of Fiasp preset */
 "A model based on the published absorption of Fiasp insulin." = "Un modèle basé sur l’absorption publiée de l’insuline FIASP.";
 
@@ -228,6 +231,7 @@
 
 /* Title of insulin model preset */
 "Fiasp" = "Fiasp";
+"Lyumjev" = "Lyumjev";
 
 /* The format string used to describe a finite workout targets duration */
 "For %1$@" = "Pour %1$@";

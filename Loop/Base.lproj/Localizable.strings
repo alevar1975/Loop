@@ -43,6 +43,9 @@
 /* Description of the prediction input effect for retrospective correction */
 "30 min comparison of glucose prediction vs actual, continued with decay over 60 min" = "30 min comparison of glucose prediction vs actual, continued with decay over 60 min";
 
+/* Subtitle of Lyumjev preset */
+"A model based on the published absorption of Lyumjev insulin." = "A model based on the published absorption of Lyumjev insulin.";
+
 /* Subtitle of Fiasp preset */
 "A model based on the published absorption of Fiasp insulin." = "A model based on the published absorption of Fiasp insulin.";
 
@@ -204,6 +207,7 @@
 
 /* Title of insulin model preset */
 "Fiasp" = "Fiasp";
+"Lyumjev" = "Lyumjev";
 
 /* The format string used to describe a finite workout targets duration */
 "For %1$@" = "For %1$@";
@@ -249,8 +253,12 @@
 /* The error message when invalid data was encountered. (1: details of invalid data) */
 "Invalid data: %1$@" = "Invalid data: %1$@";
 
+
 /* The title text for the issue report cell */
 "Issue Report" = "Issue Report";
+
+/* Format string describing retrospective glucose prediction comparison. (1: Predicted glucose)(2: Actual glucose)(3: difference) */
+"prediction-description-retrospective-correction" = "Predicted: %1$@\nActual: %2$@ (%3$@)";
 
 /* Glucose HUD accessibility hint */
 "Launches CGM app" = "Launches CGM app";
