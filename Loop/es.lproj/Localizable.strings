@@ -233,7 +233,6 @@
 
 /* Title of insulin model preset */
 "Fiasp" = "Fiasp";
-"Lyumjev" = "Lyumjev";
 
 /* The format string used to describe a finite workout targets duration */
 "For %1$@" = "Por %1$@";
@@ -290,6 +289,9 @@
 
 /* The title of the loggly service */
 "Loggly" = "Loggly";
+
+/* Title of insulin model preset */
+"Lyumjev" = "Lyumjev";
 
 /* The notification title for a loop failure */
 "Loop Failure" = "Falla del Loop";

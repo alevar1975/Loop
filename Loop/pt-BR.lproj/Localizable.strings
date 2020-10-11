@@ -210,7 +210,6 @@
 
 /* Title of insulin model preset */
 "Fiasp" = "Fiasp";
-"Lyumjev" = "Lyumjev";
 
 /* The format string used to describe a finite workout targets duration */
 "For %1$@" = "Por %1$@";
@@ -273,6 +272,9 @@
 
 /* The notification alert describing a long-lasting loop failure. The substitution parameter is the time interval since the last loop */
 "Loop has not completed successfully in %@" = "Nenhum ciclo completo com sucesso em %@";
+
+/* Title of insulin model preset */
+"Lyumjev" = "Lyumjev";
 
 /* The error message for missing data. (1: missing data details) */
 "Missing data: %1$@" = "Dados ausentes: %1$@";
