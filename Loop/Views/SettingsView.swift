@@ -10,13 +10,15 @@ import LoopKit
 import LoopKitUI
 import MockKit
 import SwiftUI
+import HealthKit
 
-public struct SettingsView: View, HorizontalSizeClassOverride {
+public struct SettingsView: View {
+    @EnvironmentObject private var displayGlucoseUnitObservable: DisplayGlucoseUnitObservable
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appName) private var appName
+    @Environment(\.guidanceColors) private var guidanceColors
     @Environment(\.carbTintColor) private var carbTintColor
     @Environment(\.glucoseTintColor) private var glucoseTintColor
-    @Environment(\.guidanceColors) private var guidanceColors
     @Environment(\.insulinTintColor) private var insulinTintColor
 
     @ObservedObject var viewModel: SettingsViewModel
@@ -36,6 +38,9 @@ public struct SettingsView: View, HorizontalSizeClassOverride {
         NavigationView {
             List {
                 loopSection
+                if FeatureFlags.automaticBolusEnabled {
+                    dosingStrategySection
+                }
                 if viewModel.showWarning {
                     alertPermissionsSection
                 }
@@ -51,13 +56,18 @@ public struct SettingsView: View, HorizontalSizeClassOverride {
                 }
                 supportSection
             }
-            .listStyle(GroupedListStyle())
+            .insetGroupedListStyle()
             .navigationBarTitle(Text(NSLocalizedString("Settings", comment: "Settings screen title")))
             .navigationBarItems(trailing: dismissButton)
-            .environment(\.horizontalSizeClass, horizontalOverride)
         }
     }
     
+    private var closedLoopToggleState: Binding<Bool> {
+        Binding(
+            get: { self.viewModel.isClosedLoopAllowed && self.viewModel.closedLoopPreference },
+            set: { self.viewModel.closedLoopPreference = $0 }
+        )
+    }
 }
 
 extension SettingsView {
@@ -69,14 +79,31 @@ extension SettingsView {
     }
     
     private var loopSection: some View {
-        Section(header: SectionHeader(label: viewModel.appNameAndVersion)) {
-            Toggle(isOn: $viewModel.dosingEnabled) {
-                Text(NSLocalizedString("Closed Loop", comment: "The title text for the looping enabled switch cell"))
+        Section(header: SectionHeader(label: viewModel.supportInfoProvider.localizedAppNameAndVersion)) {
+            Toggle(isOn: closedLoopToggleState) {
+                VStack(alignment: .leading) {
+                    Text(NSLocalizedString("Closed Loop", comment: "The title text for the looping enabled switch cell"))
+                    if !viewModel.isClosedLoopAllowed {
+                        DescriptiveText(label: NSLocalizedString("Closed Loop requires an active CGM Sensor Session", comment: "The description text for the looping enabled switch cell when closed loop is not allowed"))
+                    }
+                }
             }
-            .disabled(!viewModel.pumpManagerSettingsViewModel.isSetUp() || !viewModel.cgmManagerSettingsViewModel.isSetUp())
+            .disabled(!viewModel.isClosedLoopAllowed)
         }
     }
-    
+
+    private var dosingStrategySection: some View {
+        Section(header: SectionHeader(label: NSLocalizedString("Dosing Strategy", comment: "The title of the Dosing Strategy section in settings"))) {
+            
+            NavigationLink(destination: DosingStrategySelectionView(dosingStrategy: $viewModel.dosingStrategy))
+            {
+                HStack {
+                    Text(viewModel.dosingStrategy.title)
+                }
+            }
+        }
+    }
+
     private var alertPermissionsSection: some View {
         Section {
             NavigationLink(destination:
@@ -104,13 +131,13 @@ extension SettingsView {
                 .sheet(isPresented: $therapySettingsIsPresented) {
                     TherapySettingsView(
                         viewModel: TherapySettingsViewModel(mode: .settings,
-                                                            therapySettings: self.viewModel.therapySettings,
-                                                            glucoseUnit: self.viewModel.therapySettings.glucoseUnit!,
+                                                            therapySettings: self.viewModel.therapySettings(),
                                                             supportedInsulinModelSettings: self.viewModel.supportedInsulinModelSettings,
                                                             pumpSupportedIncrements: self.viewModel.pumpSupportedIncrements,
                                                             syncPumpSchedule: self.viewModel.syncPumpSchedule,
                                                             chartColors: .primary,
                                                             didSave: self.viewModel.didSave))
+                        .environmentObject(displayGlucoseUnitObservable)
                         .environment(\.dismiss, self.dismiss)
                         .environment(\.appName, self.appName)
                         .environment(\.carbTintColor, self.carbTintColor)
@@ -193,7 +220,7 @@ extension SettingsView {
             ForEach(viewModel.servicesViewModel.activeServices().indices, id: \.self) { index in
                 LargeButton(action: { self.viewModel.servicesViewModel.didTapService(index) },
                             includeArrow: true,
-                            imageView: self.serviceImage(uiImage: (self.viewModel.servicesViewModel.activeServices()[index] as! ServiceUI).image),
+                            imageView: self.serviceImage(uiImage: (self.viewModel.servicesViewModel.activeServices()[index] as? ServiceUI)?.image),
                             label: self.viewModel.servicesViewModel.activeServices()[index].localizedTitle,
                             descriptiveText: "")
             }
@@ -249,7 +276,7 @@ extension SettingsView {
         }
     }
     
-    private func makeDeleteAlert(for model: DeviceViewModel) -> SwiftUI.Alert {
+    private func makeDeleteAlert<T>(for model: DeviceViewModel<T>) -> SwiftUI.Alert {
         return SwiftUI.Alert(title: Text("Delete Testing Data"),
                              message: Text("Are you sure you want to delete all your \(model.name()) Data?\n(This action is not reversible)"),
                              primaryButton: .cancel(),
@@ -259,7 +286,9 @@ extension SettingsView {
     private var supportSection: some View {
         Section(header: SectionHeader(label: NSLocalizedString("Support", comment: "The title of the support section in settings"))) {
             NavigationLink(destination: SupportScreenView(didTapIssueReport: viewModel.didTapIssueReport,
-                                                          criticalEventLogExportViewModel: viewModel.criticalEventLogExportViewModel))
+                                                          criticalEventLogExportViewModel: viewModel.criticalEventLogExportViewModel,
+                                                          availableSupports: self.viewModel.availableSupports,
+                                                          supportInfoProvider: self.viewModel.supportInfoProvider))
             {
                 Text(NSLocalizedString("Support", comment: "The title of the support item in settings"))
             }
@@ -331,47 +360,79 @@ fileprivate class FakeService1: Service {
     static var serviceIdentifier: String = "FakeService1"
     var serviceDelegate: ServiceDelegate?
     var rawState: RawStateValue = [:]
+    required init() {}
     required init?(rawState: RawStateValue) {}
-    convenience init() { self.init(rawState: [:])! }
-    var available: AvailableService { AvailableService(identifier: serviceIdentifier, localizedTitle: localizedTitle) }
+    let isOnboarded = true
+    var available: ServiceDescriptor { ServiceDescriptor(identifier: serviceIdentifier, localizedTitle: localizedTitle) }
 }
 fileprivate class FakeService2: Service {
     static var localizedTitle: String = "Service 2"
     static var serviceIdentifier: String = "FakeService2"
     var serviceDelegate: ServiceDelegate?
     var rawState: RawStateValue = [:]
+    required init() {}
     required init?(rawState: RawStateValue) {}
-    convenience init() { self.init(rawState: [:])! }
-    var available: AvailableService { AvailableService(identifier: serviceIdentifier, localizedTitle: localizedTitle) }
+    let isOnboarded = true
+    var available: ServiceDescriptor { ServiceDescriptor(identifier: serviceIdentifier, localizedTitle: localizedTitle) }
 }
 fileprivate let servicesViewModel = ServicesViewModel(showServices: true,
                                                       availableServices: { [FakeService1().available, FakeService2().available] },
                                                       activeServices: { [FakeService1()] })
+
+
+fileprivate class FakeClosedLoopAllowedPublisher {
+    @Published var mockIsClosedLoopAllowed: Bool = false
+}
+
 public struct SettingsView_Previews: PreviewProvider {
+    
+    class MockSupportInfoProvider: SupportInfoProvider {
+        var localizedAppNameAndVersion = "Loop v1.2"
+        
+        var pumpStatus: PumpManagerStatus? {
+            return nil
+        }
+        
+        var cgmDevice: HKDevice? {
+            return nil
+        }
+        
+        func generateIssueReport(completion: (String) -> Void) {
+            completion("Mock Issue Report")
+        }
+    }
+    
     public static var previews: some View {
-        let viewModel = SettingsViewModel(appNameAndVersion: "Loop v1.2",
-                                          notificationsCriticalAlertPermissionsViewModel: NotificationsCriticalAlertPermissionsViewModel(),
-                                          pumpManagerSettingsViewModel: DeviceViewModel(),
-                                          cgmManagerSettingsViewModel: DeviceViewModel(),
+        let fakeClosedLoopAllowedPublisher = FakeClosedLoopAllowedPublisher()
+        let displayGlucoseUnitObservable = DisplayGlucoseUnitObservable(displayGlucoseUnit: .milligramsPerDeciliter)
+        let viewModel = SettingsViewModel(notificationsCriticalAlertPermissionsViewModel: NotificationsCriticalAlertPermissionsViewModel(),
+                                          pumpManagerSettingsViewModel: DeviceViewModel<PumpManagerDescriptor>(),
+                                          cgmManagerSettingsViewModel: DeviceViewModel<CGMManagerDescriptor>(),
                                           servicesViewModel: servicesViewModel,
                                           criticalEventLogExportViewModel: CriticalEventLogExportViewModel(exporterFactory: MockCriticalEventLogExporterFactory()),
-                                          therapySettings: TherapySettings(),
+                                          therapySettings: { TherapySettings() },
                                           supportedInsulinModelSettings: SupportedInsulinModelSettings(fiaspModelEnabled: true, walshModelEnabled: true),
                                           pumpSupportedIncrements: nil,
                                           syncPumpSchedule: nil,
                                           sensitivityOverridesEnabled: false,
                                           initialDosingEnabled: true,
+                                          isClosedLoopAllowed: fakeClosedLoopAllowedPublisher.$mockIsClosedLoopAllowed,
+                                          supportInfoProvider: MockSupportInfoProvider(),
+                                          dosingStrategy: .automaticBolus,
+                                          availableSupports: [],
                                           delegate: nil)
         return Group {
             SettingsView(viewModel: viewModel)
                 .colorScheme(.light)
                 .previewDevice(PreviewDevice(rawValue: "iPhone SE 2"))
                 .previewDisplayName("SE light")
+                .environmentObject(displayGlucoseUnitObservable)
             
             SettingsView(viewModel: viewModel)
                 .colorScheme(.dark)
                 .previewDevice(PreviewDevice(rawValue: "iPhone 11 Pro Max"))
                 .previewDisplayName("11 Pro dark")
+                .environmentObject(displayGlucoseUnitObservable)
         }
     }
 }

@@ -13,7 +13,7 @@ let FeatureFlags = FeatureFlagConfiguration()
 struct FeatureFlagConfiguration: Decodable {
     let cgmManagerCategorizeManualGlucoseRangeEnabled: Bool
     let criticalAlertsEnabled: Bool
-    let deleteAllButtonEnabled: Bool
+    let entryDeletionEnabled: Bool
     let fiaspInsulinModelEnabled: Bool
     let includeServicesInSettingsEnabled: Bool
     let mockTherapySettingsEnabled: Bool
@@ -25,6 +25,8 @@ struct FeatureFlagConfiguration: Decodable {
     let sensitivityOverridesEnabled: Bool
     let simulatedCoreDataEnabled: Bool
     let walshInsulinModelEnabled: Bool
+    let siriEnabled: Bool
+    let automaticBolusEnabled: Bool
 
     fileprivate init() {
         #if CGM_MANAGER_CATEGORIZE_GLUCOSE_RANGE_ENABLED
@@ -40,10 +42,10 @@ struct FeatureFlagConfiguration: Decodable {
         #endif
         
         // Swift compiler config is inverse, since the default state is enabled.
-        #if DELETE_ALL_BUTTON_DISABLED
-        self.deleteAllButtonEnabled = false
+        #if ENTRY_DELETION_DISABLED
+        self.entryDeletionEnabled = false
         #else
-        self.deleteAllButtonEnabled = true
+        self.entryDeletionEnabled = true
         #endif
 
         // Swift compiler config is inverse, since the default state is enabled.
@@ -119,6 +121,20 @@ struct FeatureFlagConfiguration: Decodable {
         #else
         self.walshInsulinModelEnabled = true
         #endif
+        
+        // Swift compiler config is inverse, since the default state is enabled.
+        #if SIRI_DISABLED
+        self.siriEnabled = false
+        #else
+        self.siriEnabled = true
+        #endif
+        
+        // Swift compiler config is inverse, since the default state is enabled.
+        #if AUTOMATIC_BOLUS_DISABLED
+        self.automaticBolusEnabled = false
+        #else
+        self.automaticBolusEnabled = true
+        #endif
     }
 }
 
@@ -128,7 +144,7 @@ extension FeatureFlagConfiguration : CustomDebugStringConvertible {
         return [
             "* cgmManagerCategorizeManualGlucoseRangeEnabled: \(cgmManagerCategorizeManualGlucoseRangeEnabled)",
             "* criticalAlertsEnabled: \(criticalAlertsEnabled)",
-            "* deleteAllButtonEnabled: \(deleteAllButtonEnabled)",
+            "* entryDeletionEnabled: \(entryDeletionEnabled)",
             "* fiaspInsulinModelEnabled: \(fiaspInsulinModelEnabled)",
             "* includeServicesInSettingsEnabled: \(includeServicesInSettingsEnabled)",
             "* mockTherapySettingsEnabled: \(mockTherapySettingsEnabled)",
@@ -139,7 +155,9 @@ extension FeatureFlagConfiguration : CustomDebugStringConvertible {
             "* scenariosEnabled: \(scenariosEnabled)",
             "* sensitivityOverridesEnabled: \(sensitivityOverridesEnabled)",
             "* simulatedCoreDataEnabled: \(simulatedCoreDataEnabled)",
-            "* walshInsulinModelEnabled: \(walshInsulinModelEnabled)"
+            "* walshInsulinModelEnabled: \(walshInsulinModelEnabled)",
+            "* siriEnabled: \(siriEnabled)",
+            "* automaticBolusEnabled: \(automaticBolusEnabled)"
         ].joined(separator: "\n")
     }
 }

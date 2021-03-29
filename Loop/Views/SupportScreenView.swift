@@ -9,13 +9,23 @@
 import LoopKit
 import LoopKitUI
 import SwiftUI
+import HealthKit
 
-struct SupportScreenView: View, HorizontalSizeClassOverride {
+struct SupportMenuItem: Identifiable {
+    var id: String
+    var menuItemView: AnyView
+}
+
+struct SupportScreenView: View {
     @Environment(\.dismiss) private var dismiss
     
     var didTapIssueReport: ((_ title: String) -> Void)?
     var criticalEventLogExportViewModel: CriticalEventLogExportViewModel
+    let availableSupports: [SupportUI]
+    let supportInfoProvider: SupportInfoProvider
     
+    @State private var adverseEventReportURLInvalid = false
+
     var body: some View {
         List {
             Section {
@@ -24,19 +34,51 @@ struct SupportScreenView: View, HorizontalSizeClassOverride {
                 }) {
                     Text("Issue Report", comment: "The title text for the issue report menu item")
                 }
+                
+                ForEach(supportMenuItems) {
+                    $0.menuItemView
+                }
+        
                 NavigationLink(destination: CriticalEventLogExportView(viewModel: self.criticalEventLogExportViewModel)) {
                     Text(NSLocalizedString("Export Critical Event Logs", comment: "The title of the export critical event logs in support"))
                 }
             }
         }
-        .listStyle(GroupedListStyle())
+        .insetGroupedListStyle()
         .navigationBarTitle(Text("Support", comment: "Support screen title"))
-        .environment(\.horizontalSizeClass, horizontalOverride)
+    }
+    
+    func openURL(_ url: URL) {
+        UIApplication.shared.open(url)
+    }
+    
+    var supportMenuItems: [SupportMenuItem] {
+        return availableSupports.compactMap { (support) -> SupportMenuItem? in
+            if let view = support.supportMenuItem(supportInfoProvider: supportInfoProvider, urlHandler: openURL) {
+                return SupportMenuItem(id: support.supportIdentifier, menuItemView: view)
+            } else {
+                return nil
+            }
+        }
     }
 }
 
 struct SupportScreenView_Previews: PreviewProvider {
+    class MockSupportInfoProvider: SupportInfoProvider {
+        
+        var localizedAppNameAndVersion = "Loop v1.2"
+        
+        var pumpStatus: PumpManagerStatus? = nil
+        
+        var cgmDevice: HKDevice? = nil
+        
+        func generateIssueReport(completion: (String) -> Void) {
+            completion("Mock Issue Report")
+        }
+    }
+
     static var previews: some View {
-        SupportScreenView(criticalEventLogExportViewModel: CriticalEventLogExportViewModel(exporterFactory: MockCriticalEventLogExporterFactory()))
+        SupportScreenView(criticalEventLogExportViewModel: CriticalEventLogExportViewModel(exporterFactory: MockCriticalEventLogExporterFactory()),
+                          availableSupports: [], supportInfoProvider: MockSupportInfoProvider())
     }
 }

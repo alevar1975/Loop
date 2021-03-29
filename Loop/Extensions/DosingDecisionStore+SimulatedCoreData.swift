@@ -82,7 +82,7 @@ fileprivate extension StoredDosingDecision {
                                                                                                                 RepeatingScheduleValue(startTime: .hours(18), value: DoubleRange(minValue: 90.0, maxValue: 100.0)),
                                                                                                                 RepeatingScheduleValue(startTime: .hours(21), value: DoubleRange(minValue: 110.0, maxValue: 120.0))],
                                                                                                    timeZone: timeZone)!)
-        let glucoseTargetRangeScheduleApplyingOverrideIfActive = GlucoseRangeSchedule(rangeSchedule: DailyQuantitySchedule(unit: .milligramsPerDeciliter,
+        let effectiveGlucoseTargetRangeSchedule = GlucoseRangeSchedule(rangeSchedule: DailyQuantitySchedule(unit: .milligramsPerDeciliter,
                                                                                                                            dailyItems: [RepeatingScheduleValue(startTime: .hours(0), value: DoubleRange(minValue: 100.0, maxValue: 110.0)),
                                                                                                                                         RepeatingScheduleValue(startTime: .hours(8), value: DoubleRange(minValue: 95.0, maxValue: 105.0)),
                                                                                                                                         RepeatingScheduleValue(startTime: .hours(10), value: DoubleRange(minValue: 90.0, maxValue: 100.0)),
@@ -104,10 +104,12 @@ fileprivate extension StoredDosingDecision {
         }
         let lastReservoirValue = StoredDosingDecision.LastReservoirValue(startDate: date.addingTimeInterval(-.minutes(1)),
                                                                          unitVolume: 113.3)
-        let recommendedTempBasal = StoredDosingDecision.TempBasalRecommendationWithDate(recommendation: TempBasalRecommendation(unitsPerHour: 0.75,
-                                                                                                                                duration: .minutes(30)),
-                                                                                        date: date.addingTimeInterval(-.minutes(1)))
-        let recommendedBolus = StoredDosingDecision.BolusRecommendationWithDate(recommendation: BolusRecommendation(amount: 0.2,
+        let tempBasalRecommendation = TempBasalRecommendation(unitsPerHour: 0.75,
+                                                              duration: .minutes(30))
+        let automaticDoseRecommendation = StoredDosingDecision.AutomaticDoseRecommendationWithDate(
+            recommendation: AutomaticDoseRecommendation(basalAdjustment: tempBasalRecommendation, bolusUnits: 0),
+            date: date.addingTimeInterval(-.minutes(1)))
+        let recommendedBolus = StoredDosingDecision.BolusRecommendationWithDate(recommendation: ManualBolusRecommendation(amount: 0.2,
                                                                                                                     pendingInsulin: 0.75,
                                                                                                                     notice: .predictedGlucoseBelowTarget(minGlucose: PredictedGlucoseValue(startDate: date.addingTimeInterval(.minutes(30)),
                                                                                                                                                                                            quantity: HKQuantity(unit: .milligramsPerDeciliter, doubleValue: 95.0)))),
@@ -123,7 +125,8 @@ fileprivate extension StoredDosingDecision {
                                                                    udiDeviceIdentifier: "Device UDI Device Identifier"),
                                                   pumpBatteryChargeRemaining: 3.5,
                                                   basalDeliveryState: .initiatingTempBasal,
-                                                  bolusState: .none)
+                                                  bolusState: .noBolus,
+                                                  insulinType: .novolog)
         let notificationSettings = NotificationSettings(authorizationStatus: .authorized,
                                                         soundSetting: .enabled,
                                                         badgeSetting: .enabled,
@@ -149,11 +152,11 @@ fileprivate extension StoredDosingDecision {
                                     carbsOnBoard: carbsOnBoard,
                                     scheduleOverride: scheduleOverride,
                                     glucoseTargetRangeSchedule: glucoseTargetRangeSchedule,
-                                    glucoseTargetRangeScheduleApplyingOverrideIfActive: glucoseTargetRangeScheduleApplyingOverrideIfActive,
+                                    effectiveGlucoseTargetRangeSchedule: effectiveGlucoseTargetRangeSchedule,
                                     predictedGlucose: predictedGlucose,
                                     predictedGlucoseIncludingPendingInsulin: predictedGlucoseIncludingPendingInsulin,
                                     lastReservoirValue: lastReservoirValue,
-                                    recommendedTempBasal: recommendedTempBasal,
+                                    automaticDoseRecommendation: automaticDoseRecommendation,
                                     recommendedBolus: recommendedBolus,
                                     pumpManagerStatus: pumpManagerStatus,
                                     notificationSettings: notificationSettings,

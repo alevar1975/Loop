@@ -29,7 +29,7 @@ class PredictionTableViewController: LoopChartsTableViewController, Identifiable
         tableView.rowHeight = UITableView.automaticDimension
         tableView.cellLayoutMarginsFollowReadableWidth = true
 
-        glucoseChart.glucoseDisplayRange = HKQuantity(unit: .milligramsPerDeciliter, doubleValue: 60)...HKQuantity(unit: .milligramsPerDeciliter, doubleValue: 200)
+        glucoseChart.glucoseDisplayRange = LoopConstants.glucoseChartDefaultDisplayRangeWide
 
         let notificationCenter = NotificationCenter.default
 
@@ -49,13 +49,6 @@ class PredictionTableViewController: LoopChartsTableViewController, Identifiable
                     self?.reloadData(animated: true)
                 }
             },
-            notificationCenter.addObserver(forName: .HKUserPreferencesDidChange, object: deviceManager.glucoseStore.healthStore, queue: nil) {[weak self] _ in
-                DispatchQueue.main.async {
-                    self?.log.debug("[reloadData] for HealthKit unit preference change")
-                    self?.unitPreferencesDidChange(to: self?.deviceManager.glucoseStore.preferredUnit)
-                    self?.refreshContext = RefreshContext.all
-                }
-            }
         ]
     }
 
@@ -101,6 +94,7 @@ class PredictionTableViewController: LoopChartsTableViewController, Identifiable
     }
 
     override func glucoseUnitDidChange() {
+        self.log.debug("[reloadData] for HealthKit unit preference change")
         refreshContext = RefreshContext.all
     }
 
@@ -115,13 +109,19 @@ class PredictionTableViewController: LoopChartsTableViewController, Identifiable
         chartStartDate = calendar.nextDate(after: date, matching: components, matchingPolicy: .strict, direction: .backward) ?? date
 
         let reloadGroup = DispatchGroup()
-        var glucoseValues: [StoredGlucoseSample]?
+        var glucoseSamples: [StoredGlucoseSample]?
         var totalRetrospectiveCorrection: HKQuantity?
 
         if self.refreshContext.remove(.glucose) != nil {
             reloadGroup.enter()
-            deviceManager.glucoseStore.getCachedGlucoseSamples(start: self.chartStartDate, end: nil) { (values) -> Void in
-                glucoseValues = values
+            deviceManager.glucoseStore.getGlucoseSamples(start: self.chartStartDate, end: nil) { (result) -> Void in
+                switch result {
+                case .failure(let error):
+                    self.log.error("Failure getting glucose samples: %{public}@", String(describing: error))
+                    glucoseSamples = nil
+                case .success(let samples):
+                    glucoseSamples = samples
+                }
                 reloadGroup.leave()
             }
         }
@@ -156,8 +156,8 @@ class PredictionTableViewController: LoopChartsTableViewController, Identifiable
         }
 
         reloadGroup.notify(queue: .main) {
-            if let glucoseValues = glucoseValues {
-                self.glucoseChart.setGlucoseValues(glucoseValues)
+            if let glucoseSamples = glucoseSamples {
+                self.glucoseChart.setGlucoseValues(glucoseSamples)
             }
             self.charts.invalidateChart(atIndex: 0)
 

@@ -8,15 +8,15 @@
 
 import LoopKit
 import LoopKitUI
+import LoopCore
 
 extension DeviceDataManager {
     var cgmStatusHighlight: DeviceStatusHighlight? {
-        if bluetoothState == .poweredOff {
-            return BluetoothStateManager.bluetoothOffHighlight
-        } else if bluetoothState == .denied ||
-            bluetoothState == .unauthorized
-        {
-            return BluetoothStateManager.bluetoothUnavailableHighlight
+        let bluetoothState = bluetoothProvider.bluetoothState
+        if bluetoothState == .unsupported || bluetoothState == .unauthorized {
+            return BluetoothState.unavailableHighlight
+        } else if bluetoothState == .poweredOff {
+            return BluetoothState.offHighlight
         } else if cgmManager == nil {
             return DeviceDataManager.addCGMStatusHighlight
         } else {
@@ -24,16 +24,18 @@ extension DeviceDataManager {
         }
     }
     
+    var cgmStatusBadge: DeviceStatusBadge? {
+        return (cgmManager as? CGMManagerUI)?.cgmStatusBadge
+    }
+    
     var cgmLifecycleProgress: DeviceLifecycleProgress? {
         return (cgmManager as? CGMManagerUI)?.cgmLifecycleProgress
     }
     
     var pumpStatusHighlight: DeviceStatusHighlight? {
-        if bluetoothState == .denied ||
-            bluetoothState == .unauthorized ||
-            bluetoothState == .poweredOff
-        {
-            return BluetoothStateManager.bluetoothEnableHighlight
+        let bluetoothState = bluetoothProvider.bluetoothState
+        if bluetoothState == .unsupported || bluetoothState == .unauthorized || bluetoothState == .poweredOff {
+            return BluetoothState.enableHighlight
         } else if pumpManager == nil {
             return DeviceDataManager.addPumpStatusHighlight
         } else {
@@ -62,23 +64,21 @@ extension DeviceDataManager {
     }
     
     func didTapOnCGMStatus(_ view: BaseHUDView? = nil) -> HUDTapAction? {
-        if let action = bluetoothState.action {
+        if let action = bluetoothProvider.bluetoothState.action {
             return action
         } else if let url = cgmManager?.appURL,
             UIApplication.shared.canOpenURL(url)
         {
             return .openAppURL(url)
-        } else if let cgmManagerUI = (cgmManager as? CGMManagerUI),
-            let unit = glucoseStore.preferredUnit
-        {
-            return .presentViewController(cgmManagerUI.settingsViewController(for: unit, glucoseTintColor: .glucoseTintColor, guidanceColors: .default))
+        } else if let cgmManagerUI = (cgmManager as? CGMManagerUI) {
+            return .presentViewController(cgmManagerUI.settingsViewController(for: displayGlucoseUnitObservable, bluetoothProvider: bluetoothProvider, colorPalette: .default))
         } else {
             return .setupNewCGM
         }
     }
     
     func didTapOnPumpStatus(_ view: BaseHUDView? = nil) -> HUDTapAction? {
-        if let action = bluetoothState.action {
+        if let action = bluetoothProvider.bluetoothState.action {
             return action
         } else if let pumpManagerHUDProvider = pumpManagerHUDProvider,
             let view = view,
@@ -86,10 +86,52 @@ extension DeviceDataManager {
         {
             return action
         } else if let pumpManager = pumpManager {
-            return .presentViewController(pumpManager.settingsViewController(insulinTintColor: .insulinTintColor, guidanceColors: .default))
+            return .presentViewController(pumpManager.settingsViewController(bluetoothProvider: bluetoothProvider, colorPalette: .default, allowedInsulinTypes: allowedInsulinTypes))
         } else {
             return .setupNewPump
         }
     }
+    
+    var isGlucoseValueStale: Bool {
+        guard let latestGlucoseDataDate = glucoseStore.latestGlucose?.startDate else { return true }
+
+        return Date().timeIntervalSince(latestGlucoseDataDate) > LoopCoreConstants.inputDataRecencyInterval
+    }
 }
 
+// MARK: - BluetoothState
+
+fileprivate extension BluetoothState {
+    struct Highlight: DeviceStatusHighlight {
+        var localizedMessage: String
+        var imageName: String = "bluetooth.disabled"
+        var state: DeviceStatusHighlightState = .critical
+
+        init(localizedMessage: String) {
+            self.localizedMessage = localizedMessage
+        }
+    }
+
+    static var offHighlight: Highlight {
+        return Highlight(localizedMessage: NSLocalizedString("Bluetooth\nOff", comment: "Message to the user to that the bluetooth is off"))
+    }
+
+    static var enableHighlight: Highlight {
+        return Highlight(localizedMessage: NSLocalizedString("Enable\nBluetooth", comment: "Message to the user to enable bluetooth"))
+    }
+
+    static var unavailableHighlight: Highlight {
+        return Highlight(localizedMessage: NSLocalizedString("Bluetooth\nUnavailable", comment: "Message to the user that bluetooth is unavailable to the app"))
+    }
+
+    var action: HUDTapAction? {
+        switch self {
+        case .unauthorized:
+            return .openAppURL(URL(string: UIApplication.openSettingsURLString)!)
+        case .poweredOff:
+            return .takeNoAction
+        default:
+            return nil
+        }
+    }
+}

@@ -47,15 +47,17 @@ final class DataManager {
             healthStore: healthStore,
             cacheStore: cacheStore,
             observationEnabled: false,
-            insulinModel: insulinModelSettings?.model,
+            insulinModelSettings: insulinModelSettings,
             basalProfile: basalRateSchedule,
-            insulinSensitivitySchedule: insulinSensitivitySchedule
+            insulinSensitivitySchedule: insulinSensitivitySchedule,
+            provenanceIdentifier: HKSource.default().bundleIdentifier
         )
 
         glucoseStore = GlucoseStore(
             healthStore: healthStore,
             cacheStore: cacheStore,
-            observationEnabled: false
+            observationEnabled: false,
+            provenanceIdentifier: HKSource.default().bundleIdentifier
         )
     }
 }
@@ -76,11 +78,7 @@ extension DataManager {
 
     /// The length of time insulin has an effect on blood glucose
     var insulinModelSettings: InsulinModelSettings? {
-        guard let model = doseStore.insulinModel else {
-            return nil
-        }
-
-        return InsulinModelSettings(model: model)
+        return doseStore.insulinModelSettings
     }
 
     /// The daily schedule of insulin sensitivity (also known as ISF)

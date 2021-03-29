@@ -18,7 +18,7 @@ final class WatchContext: RawRepresentable {
 
     var creationDate = Date()
 
-    var preferredGlucoseUnit: HKUnit?
+    var displayGlucoseUnit: HKUnit?
 
     var glucose: HKQuantity?
     var glucoseTrendRawValue: Int?
@@ -48,6 +48,8 @@ final class WatchContext: RawRepresentable {
 
     var cgmManagerState: CGMManager.RawStateValue?
 
+    var isClosedLoop: Bool?
+    
     init() {}
 
     required init?(rawValue: RawValue) {
@@ -56,11 +58,12 @@ final class WatchContext: RawRepresentable {
         }
 
         self.creationDate = creationDate
+        isClosedLoop = rawValue["cl"] as? Bool
 
         if let unitString = rawValue["gu"] as? String {
-            preferredGlucoseUnit = HKUnit(from: unitString)
+            displayGlucoseUnit = HKUnit(from: unitString)
         }
-        let unit = preferredGlucoseUnit ?? .milligramsPerDeciliter
+        let unit = displayGlucoseUnit ?? .milligramsPerDeciliter
         if let glucoseValue = rawValue["gv"] as? Double {
             glucose = HKQuantity(unit: unit, doubleValue: glucoseValue)
         }
@@ -101,13 +104,14 @@ final class WatchContext: RawRepresentable {
         raw["ba"] = lastNetTempBasalDose
         raw["bad"] = lastNetTempBasalDate
         raw["bp"] = batteryPercentage
+        raw["cl"] = isClosedLoop
 
         raw["cgmManagerState"] = cgmManagerState
 
         raw["cob"] = cob
 
-        let unit = preferredGlucoseUnit ?? .milligramsPerDeciliter
-        raw["gu"] = preferredGlucoseUnit?.unitString
+        let unit = displayGlucoseUnit ?? .milligramsPerDeciliter
+        raw["gu"] = displayGlucoseUnit?.unitString
         raw["gv"] = glucose?.doubleValue(for: unit)
 
         raw["gt"] = glucoseTrendRawValue

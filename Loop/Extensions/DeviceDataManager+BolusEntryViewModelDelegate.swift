@@ -10,25 +10,30 @@ import HealthKit
 import LoopCore
 import LoopKit
 
-extension DeviceDataManager: BolusEntryViewModelDelegate {
-
+extension DeviceDataManager: BolusEntryViewModelDelegate, LoggedDoseViewModelDelegate {
+    
+    func logOutsideInsulinDose(startDate: Date, units: Double, insulinType: InsulinType?) {
+        loopManager.logOutsideInsulinDose(startDate: startDate, units: units, insulinType: insulinType)
+    }
+    
     func withLoopState(do block: @escaping (LoopState) -> Void) {
         loopManager.getLoopState { block($1) }
     }
     
-    func addGlucose(_ samples: [NewGlucoseSample], completion: ((Result<[GlucoseValue]>) -> Void)?) {
-        loopManager.addGlucose(samples, completion: completion)
+    func addGlucoseSamples(_ samples: [NewGlucoseSample], completion: ((Swift.Result<[StoredGlucoseSample], Error>) -> Void)?) {
+        loopManager.addGlucoseSamples(samples, completion: completion)
     }
     
-    func addCarbEntry(_ carbEntry: NewCarbEntry, replacing replacingEntry: StoredCarbEntry?, completion: @escaping (Result<Void>) -> Void) {
+    func addCarbEntry(_ carbEntry: NewCarbEntry, replacing replacingEntry: StoredCarbEntry?, completion: @escaping (Result<StoredCarbEntry>) -> Void) {
         loopManager.addCarbEntry(carbEntry, replacing: replacingEntry, completion: completion)
     }
 
-    /// func enactBolus(units: Double, at startDate: Date, completion: @escaping (_ error: Error?) -> Void)
-    /// is already implemented in DeviceDataManager
-    
-    func getCachedGlucoseSamples(start: Date, end: Date?, completion: @escaping ([StoredGlucoseSample]) -> Void) {
-        glucoseStore.getCachedGlucoseSamples(start: start, end: end, completion: completion)
+    func storeBolusDosingDecision(_ bolusDosingDecision: BolusDosingDecision, withDate date: Date) {
+        loopManager.storeBolusDosingDecision(bolusDosingDecision, withDate: date)
+    }
+
+    func getGlucoseSamples(start: Date?, end: Date?, completion: @escaping (Swift.Result<[StoredGlucoseSample], Error>) -> Void) {
+        glucoseStore.getGlucoseSamples(start: start, end: end, completion: completion)
     }
     
     func insulinOnBoard(at date: Date, completion: @escaping (DoseStoreResult<InsulinValue>) -> Void) {
@@ -43,29 +48,36 @@ extension DeviceDataManager: BolusEntryViewModelDelegate {
         pumpManager?.ensureCurrentPumpData(completion: completion)
     }
     
-    var isGlucoseDataStale: Bool {
-        guard let latestGlucose = glucoseStore.latestGlucose else { return true }
-        return Date().timeIntervalSince(latestGlucose.startDate) <= loopManager.settings.inputDataRecencyInterval
+    var mostRecentGlucoseDataDate: Date? {
+        return glucoseStore.latestGlucose?.startDate
     }
     
-    var isPumpDataStale: Bool {
-        return Date().timeIntervalSince(doseStore.lastAddedPumpData) <= loopManager.settings.inputDataRecencyInterval
+    var mostRecentPumpDataDate: Date? {
+        return doseStore.lastAddedPumpData
     }
-    
+
     var isPumpConfigured: Bool {
         return pumpManager != nil
     }
     
-    var preferredGlucoseUnit: HKUnit? {
-        return glucoseStore.preferredUnit
+    var preferredGlucoseUnit: HKUnit {
+        return glucoseStore.preferredUnit ?? .milligramsPerDeciliter
     }
     
-    var insulinModel: InsulinModel? {
-        return loopManager.insulinModelSettings?.model
+    var pumpInsulinType: InsulinType? {
+        return pumpManager?.status.insulinType
     }
-    
+        
+    func insulinActivityDuration(for type: InsulinType?) -> TimeInterval {
+        if let insulinModelSettings = doseStore.insulinModelSettings {
+            return insulinModelSettings.model(for: type).effectDuration
+        } else {
+            return ExponentialInsulinModelPreset.rapidActingAdult.effectDuration
+        }
+    }
+
     var settings: LoopSettings {
         return loopManager.settings
     }
-    
+
 }
